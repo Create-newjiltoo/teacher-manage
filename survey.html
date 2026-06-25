@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>설문 진행 중</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --primary:#5b5bd6;--primary-l:#7b7de8;--accent:#0ea5e9;
+  --bg:#f0f4ff;--card:#ffffff;--border:#e2e8f0;
+  --text:#1e293b;--text2:#64748b;--text3:#94a3b8;
+  --success:#10b981;--warn:#f59e0b;--danger:#ef4444;
+  --font:'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif
+}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;padding-bottom:88px}
+
+/* 헤더 */
+.hdr{background:#fff;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.06)}
+.hdr-top{display:flex;align-items:center;justify-content:space-between;padding:14px 20px}
+.hdr-top h1{font-size:15px;font-weight:800;color:var(--text)}
+.anon-tag{background:linear-gradient(135deg,#ecfdf5,#d1fae5);color:#065f46;border:1px solid #6ee7b7;padding:4px 11px;border-radius:20px;font-size:11px;font-weight:700}
+.hdr-meta{font-size:12px;color:var(--text2);padding:0 20px 10px;display:flex;gap:12px;flex-wrap:wrap}
+.meta-chip{display:inline-flex;align-items:center;gap:4px;background:#f1f5f9;border-radius:6px;padding:3px 8px}
+.prog-wrap{padding:0 20px 14px}
+.prog-bg{height:8px;background:#f1f5f9;border-radius:10px;overflow:hidden}
+.prog-fill{height:100%;background:linear-gradient(90deg,var(--primary),var(--accent));border-radius:10px;transition:width .4s ease}
+.prog-info{display:flex;justify-content:space-between;margin-top:5px}
+.prog-lbl{font-size:11px;color:var(--text2)}
+
+/* 본문 */
+.body{max-width:700px;margin:0 auto;padding:20px 16px}
+
+/* 카테고리 */
+.cat-hd{
+  display:flex;align-items:center;gap:10px;
+  font-size:12px;font-weight:700;color:var(--primary);
+  padding:8px 12px;margin:24px 0 10px;
+  background:rgba(91,91,214,.06);border-radius:8px;
+  border-left:3px solid var(--primary)
+}
+
+/* 문항 카드 */
+.qcard{
+  background:#fff;border:1.5px solid var(--border);
+  border-radius:14px;padding:20px;margin-bottom:10px;
+  transition:all .2s;position:relative;overflow:hidden
+}
+.qcard::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--border);transition:background .2s}
+.qcard.answered::before{background:var(--success)}
+.qcard.err{border-color:rgba(239,68,68,.4);animation:shake .3s}
+.qcard.err::before{background:var(--danger)}
+@keyframes shake{0%,100%{transform:translateX(0)}30%{transform:translateX(-5px)}70%{transform:translateX(5px)}}
+
+.q-meta{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.q-num{
+  width:26px;height:26px;border-radius:50%;
+  background:linear-gradient(135deg,var(--primary),var(--primary-l));
+  color:#fff;font-size:11px;font-weight:800;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0
+}
+.q-tbadge{padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700}
+.ch{background:rgba(91,91,214,.1);color:var(--primary);border:1px solid rgba(91,91,214,.2)}
+.tx{background:rgba(14,165,233,.08);color:var(--accent);border:1px solid rgba(14,165,233,.2)}
+.q-hint{font-size:11px;color:var(--text3);margin-left:auto}
+.q-text{font-size:14px;font-weight:700;color:var(--text);line-height:1.6;margin-bottom:16px}
+
+/* 객관식 - 가로 레이아웃 (5개 선택지) */
+.opts-h{display:flex;flex-direction:column;gap:7px}
+.opt{
+  display:flex;align-items:center;gap:12px;
+  padding:10px 14px;border:1.5px solid var(--border);
+  border-radius:10px;cursor:pointer;transition:all .15s;user-select:none
+}
+.opt:hover{border-color:var(--primary);background:#f8f8ff}
+.opt.sel{border-color:var(--primary);background:linear-gradient(135deg,#f0f0ff,#e8eeff)}
+.opt-radio{
+  width:20px;height:20px;border-radius:50%;border:2px solid var(--border);
+  flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all .15s
+}
+.opt.sel .opt-radio{border-color:var(--primary);background:var(--primary)}
+.opt.sel .opt-radio::after{content:'';width:7px;height:7px;background:#fff;border-radius:50%}
+.opt-lbl{font-size:13px;color:var(--text);flex:1;font-weight:500}
+.opt-sc{font-size:11px;color:var(--text3);background:#f1f5f9;padding:2px 6px;border-radius:4px}
+
+/* 점수 시각화 바 */
+.score-seg-wrap{display:flex;gap:4px;margin-top:10px}
+.sc-seg{flex:1;height:5px;border-radius:3px;background:#f1f5f9;transition:background .2s}
+.sc-seg.lit{background:linear-gradient(90deg,var(--primary),var(--primary-l))}
+
+/* 주관식 */
+.stxt{
+  width:100%;padding:11px 14px;
+  background:#f8fafc;border:1.5px solid var(--border);
+  border-radius:10px;color:var(--text);font-size:13px;
+  font-family:var(--font);resize:vertical;min-height:100px;
+  transition:all .15s;line-height:1.6
+}
+.stxt:focus{outline:none;border-color:var(--primary);background:#fff;box-shadow:0 0 0 3px rgba(91,91,214,.1)}
+.char-cnt{font-size:11px;color:var(--text3);text-align:right;margin-top:4px}
+
+/* 주관식 점수 선택 */
+.sc-row{margin-top:14px;padding-top:14px;border-top:1px dashed var(--border)}
+.sc-lbl{font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px;display:flex;align-items:center;gap:5px}
+.sc-opts{display:flex;gap:6px}
+.sc-opt{
+  flex:1;padding:8px 4px;text-align:center;
+  border:1.5px solid var(--border);border-radius:10px;
+  font-size:11px;cursor:pointer;color:var(--text2);transition:all .15s;background:#f8fafc
+}
+.sc-opt:hover{border-color:var(--primary);background:#f0f0ff;color:var(--primary)}
+.sc-opt.sel{border-color:var(--primary);background:linear-gradient(135deg,#f0f0ff,#e8eeff);color:var(--primary);font-weight:800}
+.sc-opt strong{display:block;font-size:16px;margin-bottom:1px;margin-top:1px}
+
+/* 하단 바 */
+.sub-bar{
+  position:fixed;bottom:0;left:0;right:0;
+  background:#fff;border-top:2px solid var(--border);
+  padding:12px 20px;display:flex;align-items:center;justify-content:space-between;
+  box-shadow:0 -4px 20px rgba(0,0,0,.08);z-index:100
+}
+.sb-left{display:flex;flex-direction:column;gap:2px}
+.sb-cnt{font-size:15px;font-weight:800;color:var(--text)}
+.sb-hint{font-size:11px;color:var(--text3)}
+.sub-btn{
+  padding:12px 28px;
+  background:linear-gradient(135deg,var(--primary),#6d28d9);
+  color:#fff;border:none;border-radius:12px;
+  font-size:14px;font-weight:800;cursor:pointer;
+  transition:all .2s;box-shadow:0 4px 16px rgba(91,91,214,.3)
+}
+.sub-btn:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 8px 24px rgba(91,91,214,.4)}
+.sub-btn:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
+
+/* 완료 화면 */
+.comp{max-width:480px;margin:60px auto;text-align:center;padding:24px}
+.comp-ico{font-size:72px;margin-bottom:18px;animation:pop .5s ease}
+@keyframes pop{0%{transform:scale(0)}70%{transform:scale(1.1)}100%{transform:scale(1)}}
+.comp h2{font-size:26px;font-weight:800;color:var(--text);margin-bottom:10px}
+.comp p{font-size:14px;color:var(--text2);line-height:1.7;margin-bottom:24px}
+.score-box{
+  background:linear-gradient(135deg,var(--primary),#6d28d9);
+  border-radius:20px;padding:28px;margin-bottom:24px;
+  box-shadow:0 8px 32px rgba(91,91,214,.4)
+}
+.sc-num{font-size:60px;font-weight:900;color:#fff;line-height:1}
+.sc-unit{font-size:20px;font-weight:700;color:rgba(255,255,255,.8)}
+.sc-lbl2{font-size:13px;color:rgba(255,255,255,.7);margin-top:6px}
+.home-btn{
+  display:block;width:100%;padding:15px;
+  background:linear-gradient(135deg,var(--primary),#6d28d9);
+  color:#fff;border:none;border-radius:14px;
+  font-size:15px;font-weight:800;cursor:pointer;
+  box-shadow:0 4px 20px rgba(91,91,214,.3)
+}
+.spin{display:inline-block;width:18px;height:18px;border:2px solid rgba(91,91,214,.2);border-top-color:var(--primary);border-radius:50%;animation:sp .7s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+
+<!-- 로딩 -->
+<div id="loading" style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--bg)">
+  <div style="text-align:center">
+    <div style="width:44px;height:44px;border:3px solid rgba(91,91,214,.15);border-top-color:#5b5bd6;border-radius:50%;animation:sp .7s linear infinite;margin:0 auto 16px"></div>
+    <p style="color:#64748b;font-size:14px">설문지를 불러오는 중...</p>
+  </div>
+</div>
+
+<!-- 설문 본문 -->
+<div id="survey-wrap" class="hidden">
+  <div class="hdr">
+    <div class="hdr-top">
+      <h1 id="hdr-title">설문조사</h1>
+      <span class="anon-tag">🔒 익명 설문</span>
+    </div>
+    <div class="hdr-meta" id="hdr-meta"></div>
+    <div class="prog-wrap">
+      <div class="prog-bg"><div class="prog-fill" id="prog-fill" style="width:0%"></div></div>
+      <div class="prog-info">
+        <span class="prog-lbl" id="prog-lbl">0 / 0 필수 문항 완료</span>
+        <span class="prog-lbl" id="prog-pct">0%</span>
+      </div>
+    </div>
+  </div>
+  <div class="body" id="q-body"></div>
+</div>
+
+<!-- 완료 화면 -->
+<div id="complete" class="hidden">
+  <div class="comp">
+    <div class="comp-ico">🎉</div>
+    <h2>설문 제출 완료!</h2>
+    <p>소중한 의견을 남겨주셔서 감사합니다.<br>강사 교육 품질 향상에 소중히 반영하겠습니다.</p>
+    <div class="score-box">
+      <div class="sc-num" id="my-score">-<span class="sc-unit">점</span></div>
+      <div class="sc-lbl2">내 응답 기준 환산 점수 (참고용)</div>
+    </div>
+    <button class="home-btn" onclick="location.href='index.html'">← 처음으로 돌아가기</button>
+  </div>
+</div>
+
+<!-- 하단 제출바 -->
+<div class="sub-bar" id="sub-bar" style="display:none">
+  <div class="sb-left">
+    <div class="sb-cnt"><span id="ans-cnt" style="color:var(--primary)">0</span> / <span id="tot-cnt">0</span> 필수 문항 완료</div>
+    <div class="sb-hint">객관식은 모두 응답해야 제출 가능합니다</div>
+  </div>
+  <button class="sub-btn" id="sub-btn" onclick="doSubmit()" disabled>제출하기 ✓</button>
+</div>
+
+<script>
+const SURL='https://koozkqdpmzuanzpcotsv.supabase.co';
+const SKEY='sb_publishable_tgw1uLAyJZaVgzfH7lTYAA_gLPst_GA';
+const sb=window.supabase.createClient(SURL,SKEY);
+let tpl=null, answers={};
+
+window.addEventListener('load',()=>{
+  try{
+    const raw=sessionStorage.getItem('survey_tpl');
+    if(!raw){
+      // sessionStorage가 없으면 index.html로 리다이렉트
+      console.warn('survey_tpl not found in sessionStorage');
+      location.href='index.html';
+      return;
+    }
+    tpl=JSON.parse(raw);
+    if(!tpl||!tpl.id){location.href='index.html';return;}
+    render();
+  }catch(e){
+    console.error('Survey load error:',e);
+    location.href='index.html';
+  }
+});
+
+function render(){
+  document.getElementById('loading').classList.add('hidden');
+  document.getElementById('survey-wrap').classList.remove('hidden');
+  document.getElementById('sub-bar').style.display='flex';
+
+  document.getElementById('hdr-title').textContent=tpl.title;
+  document.getElementById('hdr-meta').innerHTML=`
+    <span class="meta-chip">🏢 ${tpl.client_company}</span>
+    <span class="meta-chip">👤 강사: ${tpl.instructors?.name||'-'}</span>
+    <span class="meta-chip">📅 ${new Date(tpl.education_date).toLocaleDateString('ko-KR')}</span>`;
+
+  const qs=tpl.questions||[];
+  const reqCnt=qs.filter(q=>q.type==='choice').length;
+  document.getElementById('tot-cnt').textContent=reqCnt;
+
+  const body=document.getElementById('q-body');
+  let lastCat='';
+  qs.forEach((q,i)=>{
+    if(q.category&&q.category!==lastCat){
+      const d=document.createElement('div');d.className='cat-hd';
+      d.innerHTML=`📌 ${q.category}`;
+      body.appendChild(d);lastCat=q.category;
+    }
+    const card=document.createElement('div');card.className='qcard';card.id='c'+q.id;
+    if(q.type==='choice'){
+      const numOpts=(q.options||[]).length;
+      card.innerHTML=`
+        <div class="q-meta">
+          <span class="q-num">${i+1}</span>
+          <span class="q-tbadge ch">객관식</span>
+          <span class="q-hint">5점 척도 · 필수 응답</span>
+        </div>
+        <div class="q-text">${q.question}</div>
+        <div class="opts-h">
+          ${(q.options||[]).map((opt,oi)=>`
+            <div class="opt" id="o${q.id}_${oi}" onclick="pickOpt(${q.id},${oi})">
+              <div class="opt-radio"></div>
+              <span class="opt-lbl">${opt}</span>
+              <span class="opt-sc">${(q.score_map||[])[oi]||0}점</span>
+            </div>`).join('')}
+        </div>
+        <div class="score-seg-wrap">
+          ${Array.from({length:numOpts}).map((_,si)=>`<div class="sc-seg" id="ss${q.id}_${si}"></div>`).join('')}
+        </div>`;
+      answers[q.id]=undefined;
+    } else {
+      card.innerHTML=`
+        <div class="q-meta">
+          <span class="q-num">${i+1}</span>
+          <span class="q-tbadge tx">주관식</span>
+          <span class="q-hint">선택 응답</span>
+        </div>
+        <div class="q-text">${q.question}</div>
+        <textarea class="stxt" id="tx${q.id}" maxlength="500" placeholder="자유롭게 작성해 주세요..." oninput="onTxt(${q.id},this)"></textarea>
+        <div class="char-cnt" id="cc${q.id}">0 / 500자</div>
+        <div class="sc-row">
+          <div class="sc-lbl">⭐ 이 항목에 대한 점수 평가 <span style="color:var(--text3);font-weight:400">(선택)</span></div>
+          <div class="sc-opts" id="sco${q.id}">
+            <div class="sc-opt" onclick="pickTxtSc(${q.id},5,this)"><strong>5</strong>매우 우수</div>
+            <div class="sc-opt" onclick="pickTxtSc(${q.id},4,this)"><strong>4</strong>우수</div>
+            <div class="sc-opt sel" onclick="pickTxtSc(${q.id},3,this)"><strong>3</strong>보통</div>
+            <div class="sc-opt" onclick="pickTxtSc(${q.id},2,this)"><strong>2</strong>미흡</div>
+            <div class="sc-opt" onclick="pickTxtSc(${q.id},1,this)"><strong>1</strong>매우 미흡</div>
+          </div>
+        </div>`;
+      answers[q.id]={text:'',score:3};
+    }
+    body.appendChild(card);
+  });
+  updateProg();
+}
+
+function pickOpt(qid,oi){
+  const q=tpl.questions.find(x=>x.id===qid); if(!q) return;
+  const cnt=(q.options||[]).length;
+  for(let i=0;i<cnt;i++) document.getElementById(`o${qid}_${i}`)?.classList.remove('sel');
+  document.getElementById(`o${qid}_${oi}`).classList.add('sel');
+  for(let i=0;i<cnt;i++){const s=document.getElementById(`ss${qid}_${i}`);if(s)s.classList.toggle('lit',i<=oi);}
+  answers[qid]=oi;
+  document.getElementById('c'+qid).classList.add('answered');
+  document.getElementById('c'+qid).classList.remove('err');
+  updateProg();
+}
+
+function onTxt(qid,el){
+  document.getElementById('cc'+qid).textContent=el.value.length+' / 500자';
+  if(!answers[qid]||typeof answers[qid]!=='object') answers[qid]={text:el.value,score:3};
+  else answers[qid].text=el.value;
+  document.getElementById('c'+qid).classList.toggle('answered',!!el.value.trim());
+}
+
+function pickTxtSc(qid,sc,el){
+  el.closest('.sc-opts').querySelectorAll('.sc-opt').forEach(o=>o.classList.remove('sel'));
+  el.classList.add('sel');
+  if(!answers[qid]||typeof answers[qid]!=='object') answers[qid]={text:'',score:sc};
+  else answers[qid].score=sc;
+}
+
+function updateProg(){
+  const qs=tpl.questions||[];
+  const req=qs.filter(q=>q.type==='choice');
+  const done=req.filter(q=>answers[q.id]!==undefined);
+  const pct=req.length?Math.round(done.length/req.length*100):0;
+  document.getElementById('prog-fill').style.width=pct+'%';
+  document.getElementById('prog-lbl').textContent=done.length+' / '+req.length+' 필수 문항 완료';
+  document.getElementById('prog-pct').textContent=pct+'%';
+  document.getElementById('ans-cnt').textContent=done.length;
+  document.getElementById('sub-btn').disabled=done.length<req.length;
+}
+
+function calcScore(){
+  const qs=tpl.questions||[]; let t=0,m=0;
+  qs.forEach(q=>{
+    if(q.type==='choice'){const v=answers[q.id];if(v!==undefined)t+=(q.score_map||[])[v]||0;m+=5;}
+    else{const a=answers[q.id];t+=a&&typeof a==='object'?a.score:3;m+=5;}
+  });
+  return m?Math.round(t/m*100):0;
+}
+
+async function doSubmit(){
+  const qs=tpl.questions||[]; let hasErr=false;
+  qs.filter(q=>q.type==='choice').forEach(q=>{
+    if(answers[q.id]===undefined){document.getElementById('c'+q.id).classList.add('err');hasErr=true;}
+  });
+  if(hasErr){document.querySelector('.qcard.err')?.scrollIntoView({behavior:'smooth',block:'center'});return;}
+  const btn=document.getElementById('sub-btn');
+  btn.disabled=true;btn.innerHTML='<span class="spin"></span> 제출 중...';
+  const score=calcScore();
+  const{error}=await sb.from('survey_responses').insert({
+    template_id:tpl.id,instructor_id:tpl.instructor_id,
+    client_company:tpl.client_company,education_date:tpl.education_date,
+    answers,total_score:score
+  });
+  if(error){alert('제출 오류: '+error.message);btn.disabled=false;btn.textContent='제출하기 ✓';return;}
+  await updateHist();
+  sessionStorage.removeItem('survey_tpl');
+  document.getElementById('survey-wrap').classList.add('hidden');
+  document.getElementById('sub-bar').style.display='none';
+  document.getElementById('complete').classList.remove('hidden');
+  document.getElementById('my-score').innerHTML=score+'<span class="sc-unit">점</span>';
+  window.scrollTo(0,0);
+}
+
+async function updateHist(){
+  const{data:all}=await sb.from('survey_responses').select('total_score').eq('template_id',tpl.id);
+  if(!all?.length) return;
+  const sc=all.filter(r=>r.total_score!=null).map(r=>+r.total_score);
+  const avg=sc.reduce((a,b)=>a+b,0)/sc.length;
+  const isWarn=avg<=70;
+  const{data:hist}=await sb.from('instructor_education_history')
+    .select('id,warning_issued')
+    .eq('instructor_id',tpl.instructor_id)
+    .eq('education_date',tpl.education_date)
+    .eq('client_company',tpl.client_company).limit(1);
+  if(hist?.length){
+    // 기존 이력 업데이트
+    const was=hist[0].warning_issued;
+    await sb.from('instructor_education_history')
+      .update({average_score:avg.toFixed(2),response_count:sc.length,warning_issued:isWarn})
+      .eq('id',hist[0].id);
+    if(isWarn&&!was) await sb.from('instructor_warnings')
+      .insert({instructor_id:tpl.instructor_id,education_history_id:hist[0].id,reason:`평균 점수 ${avg.toFixed(1)}점 (70점 이하 경고)`});
+  } else {
+    // 이력이 없으면 새로 생성 (교육 횟수 카운팅)
+    const ct=tpl.course_type||'M365';
+    const{data:newHist}=await sb.from('instructor_education_history').insert({
+      instructor_id:tpl.instructor_id,
+      education_date:tpl.education_date,
+      client_company:tpl.client_company,
+      course_type:ct,
+      custom_course_name:tpl.custom_course_name||null,
+      average_score:avg.toFixed(2),
+      response_count:sc.length,
+      warning_issued:isWarn
+    }).select().single();
+    if(isWarn&&newHist) await sb.from('instructor_warnings')
+      .insert({instructor_id:tpl.instructor_id,education_history_id:newHist.id,reason:`평균 점수 ${avg.toFixed(1)}점 (70점 이하 경고)`});
+  }
+}
+</script>
+</body>
+</html>
